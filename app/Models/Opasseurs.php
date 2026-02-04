@@ -18,6 +18,8 @@ class Opasseurs extends Model
         'otp_opasseur',
         'code_secure_opasseur',
         'role_opasseur',
+        'otp_expire_at',
+        'otp_verified',
     ];
 
     protected $table = 'opasseurs';

@@ -8,6 +8,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
 
@@ -93,11 +94,13 @@ class ApiAuth extends Controller
             ], 422);
         }
 
+        // Génération OTP 4 chiffres
+        $otp = rand(1000, 9999);
+
         $utilisateur = new Opasseurs();
-        $utilisateur->username_opasseur = $request->username;
-        $utilisateur->code_secure_opasseur = $request->code ?? null;
-        $utilisateur->role = $request->role;
-        $utilisateur->password_opasseur = Hash::make($request->password);
+        $utilisateur->otp_opasseur = $otp;
+        $utilisateur->otp_expire_at = Carbon::now()->addMinutes(5);
+        $utilisateur->otp_verified = false;
 
         if ($isEmail) {
             $utilisateur->email_opasseur = $login;
@@ -108,9 +111,26 @@ class ApiAuth extends Controller
         }
 
         if ($utilisateur->save()) {
+
+            // 📧 ENVOI EMAIL
+            if ($isEmail) {
+                Mail::raw(
+                    "Votre code de vérification est : $otp. Il expire dans 5 minutes.",
+                    function ($message) use ($login) {
+                        $message->to($login)
+                            ->subject('Code de vérification OTP');
+                    }
+                );
+            }
+            // 💬 ENVOI WHATSAPP
+            else {
+                // Exemple : fonction WhatsApp (API externe)
+                $this->sendWhatsappOtp($login, $otp);
+            }
+
             return response()->json([
                 'success' => true,
-                'message' => 'Vous êtes inscrit avec succès',
+                'message' => 'Code de vérification envoyé',
             ]);
         } else {
             return response()->json([
@@ -120,34 +140,28 @@ class ApiAuth extends Controller
         }
     }
 
+    private function sendWhatsappOtp($phone, $otp)
+    {
+        // EXEMPLE LOGIQUE
+        // Http::post('https://api.whatsapp.com/send', [
+        //     'to' => $phone,
+        //     'message' => "Votre code OTP est : $otp"
+        // ]);
+
+        Log::info("OTP WhatsApp envoyé à $phone : $otp");
+    }
+
     public function verifyOtp(Request $request)
     {
-        $login = $request->login;
 
-        // Détecter si c'est un email ou un numéro
-        $isEmail = filter_var($login, FILTER_VALIDATE_EMAIL);
-
-        // Règles dynamiques
         $rules = [
-            'username' => 'required|string',
             'login' => 'required|string',
-            'password' => 'required|string',
-            'role' => 'required|string',
+            'otp' => 'required|string',
         ];
 
-        // Vérification unicité selon le type
-        if ($isEmail) {
-            $rules['login'] .= '|unique:opasseurs,email_opasseur';
-        } else {
-            $rules['login'] .= '|unique:opasseurs,telephone_opasseur';
-        }
-
         $messages = [
-            'username.required' => 'Veuillez saisir votre prénom ou nom utilisateur.',
             'login.required' => 'Veuillez saisir votre email ou numéro.',
-            'login.unique' => 'Email ou téléphone est déjà utilisé.',
-            'password.required' => 'Veuillez saisir votre mot de passe.',
-            'role.required' => 'Veuillez sélectionner votre type de compte.',
+            'otp.required' => 'Veuillez saisir votre code OTP.',
         ];
 
         $validator = Validator::make($request->all(), $rules, $messages);
@@ -159,31 +173,32 @@ class ApiAuth extends Controller
             ], 422);
         }
 
-        $utilisateur = new Opasseurs();
-        $utilisateur->username_opasseur = $request->username;
-        $utilisateur->code_secure_opasseur = $request->code ?? null;
-        $utilisateur->role = $request->role;
-        $utilisateur->password_opasseur = Hash::make($request->password);
 
-        if ($isEmail) {
-            $utilisateur->email_opasseur = $login;
-            $utilisateur->telephone_opasseur = null;
-        } else {
-            $utilisateur->telephone_opasseur = $login;
-            $utilisateur->email_opasseur = null;
+        $user = Opasseurs::where('email_opasseur', $request->login)
+            ->orWhere('telephone_opasseur', $request->login)
+            ->first();
+
+        if (!$user) {
+            return response()->json(['message' => 'Utilisateur introuvable'], 404);
         }
 
-        if ($utilisateur->save()) {
-            return response()->json([
-                'success' => true,
-                'message' => 'Vous êtes inscrit avec succès',
-            ]);
-        } else {
-            return response()->json([
-                'success' => false,
-                'message' => "Une erreur s'est produite. Veuillez recommencer.",
-            ], 401);
+        if ($user->otp_opasseur !== $request->otp) {
+            return response()->json(['message' => 'OTP incorrect'], 422);
         }
+
+        if (Carbon::now()->gt($user->otp_expire_at)) {
+            return response()->json(['message' => 'OTP expiré'], 422);
+        }
+
+        $user->update([
+            'otp_verified' => true,
+            'otp_opasseur' => null
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'OTP vérifié avec succès'
+        ]);
     }
 
     public function register(Request $request)
@@ -199,14 +214,8 @@ class ApiAuth extends Controller
             'login' => 'required|string',
             'password' => 'required|string',
             'role' => 'required|string',
+            'code' => 'nullable|string',
         ];
-
-        // Vérification unicité selon le type
-        if ($isEmail) {
-            $rules['login'] .= '|unique:opasseurs,email_opasseur';
-        } else {
-            $rules['login'] .= '|unique:opasseurs,telephone_opasseur';
-        }
 
         $messages = [
             'username.required' => 'Veuillez saisir votre prénom ou nom utilisateur.',
@@ -225,31 +234,25 @@ class ApiAuth extends Controller
             ], 422);
         }
 
-        $utilisateur = new Opasseurs();
-        $utilisateur->username_opasseur = $request->username;
-        $utilisateur->code_secure_opasseur = $request->code ?? null;
-        $utilisateur->role = $request->role;
-        $utilisateur->password_opasseur = Hash::make($request->password);
+        $user = Opasseurs::where('email_opasseur', $request->login)
+            ->orWhere('telephone_opasseur', $request->login)
+            ->first();
 
-        if ($isEmail) {
-            $utilisateur->email_opasseur = $login;
-            $utilisateur->telephone_opasseur = null;
-        } else {
-            $utilisateur->telephone_opasseur = $login;
-            $utilisateur->email_opasseur = null;
+        if (!$user) {
+            return response()->json(['message' => 'Utilisateur introuvable'], 404);
         }
 
-        if ($utilisateur->save()) {
-            return response()->json([
-                'success' => true,
-                'message' => 'Vous êtes inscrit avec succès',
-            ]);
-        } else {
-            return response()->json([
-                'success' => false,
-                'message' => "Une erreur s'est produite. Veuillez recommencer.",
-            ], 401);
-        }
+        $user->update([
+            'username_opasseur' => $request->username,
+            'code_secure_opasseur' => $request->code ?? null,
+            'role_opasseur' => $request->role,
+            'password_opasseur' => Hash::make($request->password),
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Vous êtes inscrit avec succès',
+        ]);
     }
 
     public function update(Request $request, $id)
