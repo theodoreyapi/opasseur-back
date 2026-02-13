@@ -2,12 +2,14 @@
 
 use App\Http\Controllers\Api\ApiApiFavorites;
 use App\Http\Controllers\Api\ApiAuth;
+use App\Http\Controllers\Api\ApiCondition;
 use App\Http\Controllers\Api\ApiHotels;
 use App\Http\Controllers\Api\ApiNotification;
 use App\Http\Controllers\Api\ApiPayments;
 use App\Http\Controllers\Api\ApiProfile;
 use App\Http\Controllers\Api\ApiPromosCodes;
 use App\Http\Controllers\Api\ApiReservations;
+use App\Http\Controllers\Api\ApiReview;
 use App\Http\Controllers\Api\ApiRooms;
 use App\Http\Controllers\Api\ApiSubscriptionPayments;
 use App\Http\Controllers\Api\ApiSubscriptionPlans;
@@ -25,17 +27,18 @@ Route::prefix('auth')->group(function () {
     Route::post('/register-one', [ApiAuth::class, 'registerOne']);
     Route::post('/login', [ApiAuth::class, 'login']);
     Route::post('/logout', [ApiAuth::class, 'logout']);
-    Route::post('/update', [ApiAuth::class, 'update']);
+    Route::post('/update/{id}', [ApiAuth::class, 'update']);
     Route::post('/password/forgot', [ApiAuth::class, 'forgotPassword']);
     Route::post('/password/reset', [ApiAuth::class, 'resetPassword']);
     Route::post('/password/otp', [ApiAuth::class, 'verifyOtp']);
+    Route::post('/resend/otp', [ApiAuth::class, 'resendOtp']);
 });
 
 // User Profile
 Route::prefix('users')->group(function () {
     Route::get('/profile/{id}', [ApiProfile::class, 'profile']);
-    Route::put('/profile', [ApiProfile::class, 'updateProfile']);
-    Route::put('/password', [ApiProfile::class, 'changePassword']);
+    Route::put('/profile/{id}', [ApiProfile::class, 'updateProfile']);
+    Route::put('/password/{id}', [ApiProfile::class, 'changePassword']);
     Route::delete('/account/{id}', [ApiProfile::class, 'account']);
     Route::put('/code', [ApiProfile::class, 'updateCode']);
     // Api pour checker son code
@@ -88,6 +91,7 @@ Route::prefix('reservations')->group(function () {
 // Promo Codes
 Route::prefix('promos')->group(function () {
     Route::get('/check/{code}', [ApiPromosCodes::class, 'getPromo']);
+    // Generer un autre code promo si le code n'est pas totalement utilise
 });
 
 // Favorites
@@ -115,4 +119,18 @@ Route::prefix('notifications')->group(function () {
     Route::get('/{user_id}', [ApiNotification::class, 'getNotifications']);
     Route::post('/mark-as-read', [ApiNotification::class, 'markAsRead']);
     Route::delete('/{id}', [ApiNotification::class, 'deleteNotification']);
+});
+
+// Politiques
+Route::prefix('politique')->group(function () {
+    Route::get('/mention', [ApiCondition::class, 'getMention']);
+    Route::get('/security', [ApiCondition::class, 'getSecurity']);
+    Route::get('/condition', [ApiCondition::class, 'getCondition']);
+});
+
+// Reviews
+Route::prefix('reviews')->group(function () {
+    Route::get('/hotel/{id}', [ApiReview::class, 'getReviewByHotel']);
+    Route::post('/hotel/{id}', [ApiReview::class, 'addReviewByHotel']);
+    Route::delete('/hotel/{id}', [ApiReview::class, 'deleteReviewByHotel']);
 });

@@ -11,6 +11,7 @@ class Hotels extends Model
     use HasFactory, Notifiable;
 
     protected $fillable = [
+        'image',
         'name',
         'type',
         'short_description',

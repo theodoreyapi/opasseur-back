@@ -15,6 +15,7 @@ return new class extends Migration
             $table->id('id_hotel')->primary();
 
             // Identité
+            $table->string('image');
             $table->string('name'); // Résidence O’Passage
             $table->enum('type', ['hotel', 'residence', 'appartement']);
             $table->text('short_description')->nullable();

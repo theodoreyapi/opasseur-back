@@ -9,7 +9,6 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
 
 class ApiAuth extends Controller
@@ -99,7 +98,7 @@ class ApiAuth extends Controller
 
         $utilisateur = new Opasseurs();
         $utilisateur->otp_opasseur = $otp;
-        $utilisateur->otp_expire_at = Carbon::now()->addMinutes(5);
+        $utilisateur->otp_expire_at = Carbon::now()->addMinutes(1);
         $utilisateur->otp_verified = false;
 
         if ($isEmail) {
@@ -114,13 +113,102 @@ class ApiAuth extends Controller
 
             // 📧 ENVOI EMAIL
             if ($isEmail) {
-                Mail::raw(
-                    "Votre code de vérification est : $otp. Il expire dans 5 minutes.",
-                    function ($message) use ($login) {
-                        $message->to($login)
-                            ->subject('Code de vérification OTP');
-                    }
-                );
+                try {
+                    Mail::raw(
+                        "Votre code de vérification est : $otp. Il expire dans 1 minute.",
+                        function ($message) use ($login) {
+                            $message->to($login)
+                                ->subject('Code de vérification OTP');
+                        }
+                    );
+                } catch (\Exception $e) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => "Code généré mais email non envoyé",
+                        'error' => $e->getMessage()
+                    ], 500);
+                }
+            }
+            // 💬 ENVOI WHATSAPP
+            else {
+                // Exemple : fonction WhatsApp (API externe)
+                $this->sendWhatsappOtp($login, $otp);
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Code de vérification envoyé',
+            ]);
+        } else {
+            return response()->json([
+                'success' => false,
+                'message' => "Une erreur s'est produite. Veuillez recommencer.",
+            ], 401);
+        }
+    }
+
+    public function forgotPassword(Request $request)
+    {
+        $login = $request->login;
+
+        // Détecter si c'est un email ou un numéro
+        $isEmail = filter_var($login, FILTER_VALIDATE_EMAIL);
+
+        // Règles dynamiques
+        $rules = [
+            'login' => 'required|string',
+        ];
+
+        $messages = [
+            'login.required' => 'Veuillez saisir votre email ou numéro.',
+        ];
+
+        $validator = Validator::make($request->all(), $rules, $messages);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => collect($validator->errors()->all()),
+            ], 422);
+        }
+
+        $utilisateur = Opasseurs::where('email_opasseur', $request->login)
+            ->orWhere('telephone_opasseur', $request->login)
+            ->first();
+
+        if (!$utilisateur) {
+            return response()->json([
+                'success' => false,
+                'message' => "Utilisateur introuvable",
+            ], 401);
+        }
+
+        // Génération OTP 4 chiffres
+        $otp = rand(1000, 9999);
+
+        $utilisateur->otp_opasseur = $otp;
+        $utilisateur->otp_expire_at = Carbon::now()->addMinutes(1);
+        $utilisateur->otp_verified = false;
+
+        if ($utilisateur->save()) {
+
+            // 📧 ENVOI EMAIL
+            if ($isEmail) {
+                try {
+                    Mail::raw(
+                        "Votre code de vérification est : $otp. Il expire dans 1 minute.",
+                        function ($message) use ($login) {
+                            $message->to($login)
+                                ->subject('Code de vérification OTP');
+                        }
+                    );
+                } catch (\Exception $e) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => "Code généré mais email non envoyé. Voici votre code : $otp",
+                        'error' => $e->getMessage()
+                    ], 500);
+                }
             }
             // 💬 ENVOI WHATSAPP
             else {
@@ -156,7 +244,7 @@ class ApiAuth extends Controller
 
         $rules = [
             'login' => 'required|string',
-            'otp' => 'required|string',
+            'otp' => 'required',
         ];
 
         $messages = [
@@ -173,7 +261,6 @@ class ApiAuth extends Controller
             ], 422);
         }
 
-
         $user = Opasseurs::where('email_opasseur', $request->login)
             ->orWhere('telephone_opasseur', $request->login)
             ->first();
@@ -182,7 +269,7 @@ class ApiAuth extends Controller
             return response()->json(['message' => 'Utilisateur introuvable'], 404);
         }
 
-        if ($user->otp_opasseur !== $request->otp) {
+        if ($user->otp_opasseur != $request->otp) {
             return response()->json(['message' => 'OTP incorrect'], 422);
         }
 
@@ -201,20 +288,98 @@ class ApiAuth extends Controller
         ]);
     }
 
-    public function register(Request $request)
+    public function resendOtp(Request $request)
     {
-        $login = $request->login;
+        // 1️⃣ Validation
+        $rules = [
+            'login' => 'required|string',
+        ];
 
-        // Détecter si c'est un email ou un numéro
+        $messages = [
+            'login.required' => 'Veuillez saisir votre email ou numéro.',
+        ];
+
+        $validator = Validator::make($request->all(), $rules, $messages);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => collect($validator->errors()->all()),
+            ], 422);
+        }
+
+        // 2️⃣ Détection email ou téléphone
+        $login = $request->login;
         $isEmail = filter_var($login, FILTER_VALIDATE_EMAIL);
 
+        // 3️⃣ Recherche utilisateur
+        $user = Opasseurs::where(function ($q) use ($login) {
+            $q->where('email_opasseur', $login)
+                ->orWhere('telephone_opasseur', $login);
+        })
+            ->orderBy('id_opasseur', 'desc')
+            ->first();
+
+        if (!$user) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Utilisateur introuvable'
+            ], 404);
+        }
+
+        // 4️⃣ Vérifier si OTP encore valide
+        if ($user->otp_expire_at && Carbon::now()->lt($user->otp_expire_at)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'OTP encore valide. Veuillez patienter.'
+            ], 422);
+        }
+
+        // 5️⃣ Génération nouvel OTP
+        $newOtp = rand(1000, 9999);
+
+        $user->update([
+            'otp_opasseur' => $newOtp,
+            'otp_expire_at' => Carbon::now()->addMinutes(1),
+            'otp_verified' => false,
+        ]);
+
+        // 6️⃣ Envoi OTP
+        try {
+            if ($isEmail) {
+                Mail::raw(
+                    "Votre nouveau code de vérification est : $newOtp. Il expire dans 1 minute.",
+                    function ($message) use ($login) {
+                        $message->to($login)
+                            ->subject('Nouveau code OTP');
+                    }
+                );
+            } else {
+                $this->sendWhatsappOtp($login, $newOtp);
+            }
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'OTP généré mais envoi échoué',
+            ], 500);
+        }
+
+        // 7️⃣ Réponse OK
+        return response()->json([
+            'success' => true,
+            'message' => 'Nouveau code de vérification envoyé',
+        ]);
+    }
+
+    public function register(Request $request)
+    {
         // Règles dynamiques
         $rules = [
             'username' => 'required|string',
             'login' => 'required|string',
             'password' => 'required|string',
             'role' => 'required|string',
-            'code' => 'nullable|string',
+            'code' => 'nullable|int',
         ];
 
         $messages = [
@@ -255,128 +420,15 @@ class ApiAuth extends Controller
         ]);
     }
 
-    public function update(Request $request, $id)
-    {
-        $utilisateur = Opasseurs::findOrFail($id);
-
-        $rules = [
-            'nom' => 'sometimes|required|string',
-            'prenom' => 'sometimes|required|string',
-            //'phone' => 'sometimes|required|string|unique:utilisateurs,phone_utilisateur,' . $id,
-            //'commune' => 'sometimes|required|integer',
-            'photo' => 'nullable|image',
-        ];
-
-        $messages = [
-            'nom.required' => 'Veuillez saisir votre nom.',
-            'prenom.required' => 'Veuillez saisir votre prénom.',
-            //'phone.required' => 'Veuillez saisir votre numéro de téléphone.',
-            //'phone.unique' => 'Le numéro de téléphone est deja utilisé.',
-            //'commune.required' => 'Veuillez sélectionner votre commune.',
-        ];
-
-        $validator = Validator::make($request->all(), $rules, $messages);
-
-        if ($validator->fails()) {
-            return response()->json([
-                'success' => false,
-                'message' => collect($validator->errors()->all()),
-            ], 422);
-        }
-
-        if ($request->hasFile('photo')) {
-            // supprimer l'ancienne photo si elle existe
-            if ($utilisateur->photo_utilisateur) {
-                $anciennePhotoPath = str_replace('/storage/', '', $utilisateur->photo_utilisateur);
-                Storage::disk('public')->delete($anciennePhotoPath);
-            }
-
-            $timestamp = Carbon::now()->format('Ymd_His');
-            $photo = $request->file('photo');
-            $photoName = 'photo_' . $timestamp . '.' . $photo->getClientOriginalExtension();
-            $photoPath = $photo->storeAs('utilisateurs/photos', $photoName, 'public');
-            $utilisateur->photo_utilisateur = Storage::url($photoPath);
-        }
-
-        // Mise à jour des champs modifiables
-        if ($request->filled('nom')) {
-            $utilisateur->nom_utilisateur = $request->nom;
-        }
-
-        if ($request->filled('prenom')) {
-            $utilisateur->last_name = $request->prenom;
-        }
-
-        // if ($request->filled('phone_utilisateur')) {
-        //     $utilisateur->phone_utilisateur = $request->phone;
-        // }
-
-        // if ($request->filled('commune_id')) {
-        //     $utilisateur->commune_id = $request->commune;
-        // }
-
-        if ($utilisateur->save()) {
-            return response()->json([
-                'success' => true,
-                'message' => 'Informations mises à jour avec succès',
-                'photo' => url($utilisateur->photo_utilisateur)
-            ], 200);
-        } else {
-            return response()->json([
-                'success' => false,
-                'message' => "Impossible de mettre à jour vos informations. Veuillez recommencer.",
-            ], 401);
-        }
-    }
-
-    public function demanderOtpReset(Request $request)
+    public function resetPassword(Request $request)
     {
         $rules = [
-            'phone' => 'required|exists:users_app,phone',
-        ];
-
-        $messages = [
-            'phone.exists' => 'Le numéro de téléphone n\'est pas enregistré.',
-        ];
-
-        $validator = Validator::make($request->all(), $rules, $messages);
-
-        if ($validator->fails()) {
-            return response()->json([
-                'success' => false,
-                'message' => collect($validator->errors()->all()),
-            ], 422);
-        }
-
-        $utilisateur = Opasseurs::where('phone', $request->phone)->first();
-
-        // Générer un OTP aléatoire
-        $otp = rand(100000, 999999);
-        $utilisateur->otp = $otp;
-        $utilisateur->save();
-
-        // TODO : Envoyer le code OTP via SMS
-        // Exemple de log
-        Log::info("OTP pour {$utilisateur->phone} : $otp");
-
-        return response()->json([
-            'success' => true,
-            'message' => 'Code OTP envoyé avec succès',
-        ]);
-    }
-
-    public function resetPasswordWithOtp(Request $request)
-    {
-
-        $rules = [
-            'phone' => 'required|exists:users_app,phone',
-            'otp' => 'required',
+            'login' => 'required',
             'nouveau' => 'required',
         ];
 
         $messages = [
-            'phone.required' => 'Veuillez saisir votre numéro de téléphone.',
-            'phone.exists' => 'Le numéro de téléphone n\'est pas enregistré.',
+            'login.required' => 'Veuillez saisir votre numéro de téléphone.',
             'nouveau.required' => 'Veuillez saisir votre nouveau mot de passe.',
         ];
 
@@ -389,19 +441,18 @@ class ApiAuth extends Controller
             ], 422);
         }
 
-        $utilisateur = Opasseurs::where('phone', $request->phone)
-            ->where('otp', $request->otp)
+        $utilisateur = Opasseurs::where('email_opasseur', $request->login)
+            ->orWhere('telephone_opasseur', $request->login)
             ->first();
 
         if (!$utilisateur) {
             return response()->json([
                 'success' => false,
-                'message' => 'OTP invalide ou expiré',
+                'message' => "Utilisateur introuvable",
             ], 401);
         }
 
-        $utilisateur->password = Hash::make($request->nouveau);
-        $utilisateur->otp = null; // on réinitialise l’OTP
+        $utilisateur->password_opasseur = Hash::make($request->nouveau);
 
         if ($utilisateur->save()) {
             return response()->json([
