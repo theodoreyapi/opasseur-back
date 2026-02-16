@@ -145,9 +145,42 @@ class ApiRooms extends Controller
     // 🔹 GET ALL ROOMS
     public function getAllRooms()
     {
+        $rooms = Rooms::join('hotels', 'hotels.id_hotel', '=', 'rooms.hotel_id')
+            ->select(
+                'rooms.id_room',
+                'rooms.name',
+                'rooms.bedrooms',
+                'rooms.bathrooms',
+                'rooms.living_rooms',
+                'rooms.capacity',
+                'rooms.price_per_night',
+                'rooms.is_available',
+                'hotels.id_hotel',
+                'hotels.name as hotel_name',
+                'hotels.address as hotel_address',
+                'hotels.phone as hotel_phone',
+                'hotels.rating as hotel_rating'
+            )
+            ->paginate(10);
+
+        $rooms->getCollection()->transform(function ($room) {
+
+            // Images de la room
+            $room->images = HotelImages::where('room_id', $room->id_room)
+                ->select('id_image', 'image_path', 'type', 'is_main')
+                ->get();
+
+            // Tarifs de la room
+            $room->pricings = HotelPricing::where('room_id', $room->id_room)
+                ->select('id_pricing', 'label', 'nights', 'price')
+                ->get();
+
+            return $room;
+        });
+
         return response()->json([
             'success' => true,
-            'data' => Rooms::with('hotel')->paginate(10)
+            'data' => $rooms
         ]);
     }
 

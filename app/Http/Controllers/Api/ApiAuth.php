@@ -21,7 +21,7 @@ class ApiAuth extends Controller
         ];
 
         $messages = [
-            'login.required' => 'Veuillez saisir votre telephone.',
+            'login.required' => 'Veuillez saisir votre telephone ou email.',
             'password.required' => 'Veuillez saisir votre mot de passe.',
         ];
 
@@ -47,7 +47,7 @@ class ApiAuth extends Controller
                     'id' => $utilisateur->id_opasseur,
                     'username' => $utilisateur->username_opasseur,
                     'email' => $utilisateur->email_opasseur,
-                    'phone' => $utilisateur->telephone_opasseur,
+                    'phone' => $utilisateur->telephone_opasseur ?? "",
                     'code' => $utilisateur->code_secure_opasseur ?? "",
                     'role' => $utilisateur->role_opasseur,
                 ],

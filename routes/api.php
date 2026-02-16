@@ -41,7 +41,7 @@ Route::prefix('users')->group(function () {
     Route::put('/password/{id}', [ApiProfile::class, 'changePassword']);
     Route::delete('/account/{id}', [ApiProfile::class, 'account']);
     Route::put('/code', [ApiProfile::class, 'updateCode']);
-    // Api pour checker son code
+    Route::post('/code/check', [ApiProfile::class, 'checkCode']);
 });
 
 // Hotels and Rooms
@@ -74,11 +74,9 @@ Route::prefix('reservations')->group(function () {
     Route::post('/search', [ApiReservations::class, 'searchReservations']);
     // Supprimer chez le client mais visible chez l'admin
     Route::delete('/{id}', [ApiReservations::class, 'deleteReservation']);
-    // l'annulation doit generer un autre code promo pour le client
-    // Route::patch('/{id}/cancel', [ApiReservations::class, 'cancelReservation']);
 
     // Manager
-    Route::get('/room', [ApiReservations::class, 'getRoomReservations']);
+    Route::get('/room/{id}', [ApiReservations::class, 'getRoomReservations']);
     Route::patch('/{id}/confirm', [ApiReservations::class, 'confirmReservation']);
     Route::patch('/{id}/cancel', [ApiReservations::class, 'cancelReservation']);
 

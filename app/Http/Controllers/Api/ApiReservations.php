@@ -234,11 +234,11 @@ class ApiReservations extends Controller
     }
 
     // 📋 Manager - room reservations
-    public function getRoomReservations(Request $request)
+    public function getRoomReservations($id)
     {
         return response()->json([
             'success' => true,
-            'data' => Reservations::where('room_id', $request->room_id)->get()
+            'data' => Reservations::where('room_id', $id)->get()
         ]);
     }
 }
