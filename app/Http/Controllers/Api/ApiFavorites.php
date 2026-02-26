@@ -4,13 +4,15 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Favorites;
+use App\Models\HotelAmenities;
 use App\Models\HotelImages;
+use App\Models\HotelPricing;
 use App\Models\Hotels;
 use App\Models\Rooms;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 
-class ApiApiFavorites extends Controller
+class ApiFavorites extends Controller
 {
     public function addFavorite(Request $request)
     {
@@ -35,81 +37,115 @@ class ApiApiFavorites extends Controller
 
     public function getFavorites($user_id)
     {
-        $favorites = Favorites::where('user_id', $user_id)
+        $rooms = Rooms::join('favorites', 'favorites.room_id', '=', 'rooms.id_room')
+            ->join('hotels', 'hotels.id_hotel', '=', 'rooms.hotel_id')
+            ->where('favorites.user_id', $user_id)
             ->select(
-                'id_favorite',
-                'user_id',
-                'room_id',
-                'hotel_id',
-                'created_at'
+                // =====================
+                // FAVORITES
+                // =====================
+                'favorites.id_favorite',
+                'favorites.created_at as favorited_at',
+
+                // =====================
+                // ROOMS
+                // =====================
+                'rooms.id_room',
+                'rooms.name',
+                'rooms.bedrooms',
+                'rooms.bathrooms',
+                'rooms.living_rooms',
+                'rooms.capacity',
+                'rooms.price_per_night',
+                'rooms.is_available',
+
+                // =====================
+                // HOTELS
+                // =====================
+                'hotels.id_hotel',
+                'hotels.type as hotel_type',
+                'hotels.short_description as desc_courte',
+                'hotels.description_establishment as desc_etabli',
+                'hotels.description_accommodation as desc_heberge',
+                'hotels.latitude',
+                'hotels.longitude',
+                'hotels.currency as monnaie',
+                'hotels.check_in_time as hotel_in',
+                'hotels.check_out_time as hotel_out',
+                'hotels.free_cancellation_hours as free_cancel',
+                'hotels.reservations_count as nbre_reservation',
+                'hotels.rating',
+                'hotels.reviews_count as review',
+                'hotels.name as hotel_name',
+                'hotels.address as hotel_address'
             )
-            ->get();
+            ->paginate(10);
 
-        if ($favorites->isEmpty()) {
-            return response()->json([
-                'success' => true,
-                'data' => []
-            ]);
-        }
+        $rooms->getCollection()->transform(function ($room) {
 
+            // =====================
+            // Images de la room
+            // =====================
+            $room->images = HotelImages::where('room_id', $room->id_room)
+                ->select('id_image', 'image_path', 'type', 'is_main')
+                ->get();
 
-        $roomIds  = $favorites->pluck('room_id')->unique();
-        $hotelIds = $favorites->pluck('hotel_id')->unique();
+            // =====================
+            // Tarifs de la room
+            // =====================
+            $room->pricings = HotelPricing::where('room_id', $room->id_room)
+                ->select('id_pricing', 'label', 'nights', 'price')
+                ->get();
 
-        $rooms = Rooms::whereIn('id_room', $roomIds)
-            ->select(
-                'id_room',
-                'hotel_id',
-                'name',
-                'price_per_night',
-                'capacity'
-            )
-            ->get()
-            ->keyBy('id_room');
+            // =====================
+            // Amenities de l’hôtel
+            // =====================
+            $room->amenities = HotelAmenities::where('hotel_id', $room->id_hotel)
+                ->where('available', true)
+                ->select(
+                    'id_amenity',
+                    'name',
+                    'icon',
+                    'available'
+                )
+                ->get();
 
-        $roomImages = HotelImages::whereIn('room_id', $roomIds)
-            ->select(
-                'id_image',
-                'room_id',
-                'image_url'
-            )
-            ->get()
-            ->groupBy('room_id');
-
-        $hotels = Hotels::whereIn('id_hotel', $hotelIds)
-            ->select(
-                'id_hotel',
-                'name',
-                'address',
-                'city'
-            )
-            ->get()
-            ->keyBy('id_hotel');
-
-        $favorites = $favorites->map(function ($fav) use ($rooms, $roomImages, $hotels) {
-
-            $room = $rooms[$fav->room_id] ?? null;
-
-            if ($room) {
-                $room->images = $roomImages[$room->id_room] ?? [];
-            }
-
-            $fav->room  = $room;
-            $fav->hotel = $hotels[$fav->hotel_id] ?? null;
-
-            return $fav;
+            return $room;
         });
 
         return response()->json([
             'success' => true,
-            'data' => $favorites
+            'data' => $rooms
         ]);
     }
 
-    public function removeFavorite($id)
+    public function removeFavorite(Request $request)
     {
-        Favorites::findOrFail($id)->delete();
+        $validator = Validator::make($request->all(), [
+            'user_id' => 'required',
+            'room_id' => 'required'
+        ]);
 
-        return response()->json(['success' => true, 'message' => 'Favori supprimé']);
+        if ($validator->fails()) {
+            return response()->json(['message' => $validator->errors()], 422);
+        }
+
+        $favorite = Favorites::where('user_id', $request->user_id)
+            ->where('room_id', $request->room_id)
+            ->first();
+
+        if (!$favorite) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Favori introuvable'
+            ], 404);
+        }
+
+        $favorite->delete();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Favori supprimé'
+        ]);
     }
 }

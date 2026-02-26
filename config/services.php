@@ -35,4 +35,9 @@ return [
         ],
     ],
 
+    'wave' => [
+        'key' => env('WAVE_API_KEY'),
+        'url' => env('WAVE_BASE_URL'),
+    ],
+
 ];

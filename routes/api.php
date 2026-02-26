@@ -1,6 +1,6 @@
 <?php
 
-use App\Http\Controllers\Api\ApiApiFavorites;
+use App\Http\Controllers\Api\ApiFavorites;
 use App\Http\Controllers\Api\ApiAuth;
 use App\Http\Controllers\Api\ApiCondition;
 use App\Http\Controllers\Api\ApiHotels;
@@ -46,25 +46,24 @@ Route::prefix('users')->group(function () {
 
 // Hotels and Rooms
 Route::prefix('hotels')->group(function () {
+    // ✅ Routes statiques en PREMIER
     Route::get('/', [ApiHotels::class, 'getAllHotels']);
-    Route::get('/{id}', [ApiHotels::class, 'getHotelById']);
+    Route::post('/', [ApiHotels::class, 'createHotel']);
     Route::post('/search', [ApiHotels::class, 'searchHotels']);
 
-    // Manager
-    Route::post('/', [ApiHotels::class, 'createHotel']);
-    Route::put('/{id}', [ApiHotels::class, 'updateHotel']);
-    Route::delete('/{id}', [ApiHotels::class, 'deleteHotel']);
-
-    // Rooms public
-    Route::get('/{hotel_id}/rooms', [ApiRooms::class, 'getHotelRooms']);
-    Route::get('/rooms/{room_id}', [ApiRooms::class, 'getRoom']);
+    // ✅ Routes /rooms statiques avant les routes dynamiques /{id}
     Route::get('/rooms', [ApiRooms::class, 'getAllRooms']);
-
-    // Rooms manager
     Route::post('/rooms', [ApiRooms::class, 'createRoom']);
+    Route::get('/rooms/{room_id}', [ApiRooms::class, 'getRoom']);
     Route::delete('/rooms/{room_id}', [ApiRooms::class, 'deleteRoom']);
     Route::put('/rooms/{room_id}', [ApiRooms::class, 'updateRoom']);
     Route::patch('/rooms/{room_id}/availability', [ApiRooms::class, 'updateRoomAvailability']);
+
+    // ⚠️ Routes dynamiques /{id} en DERNIER
+    Route::get('/{id}', [ApiHotels::class, 'getHotelById']);
+    Route::put('/{id}', [ApiHotels::class, 'updateHotel']);
+    Route::delete('/{id}', [ApiHotels::class, 'deleteHotel']);
+    Route::get('/{hotel_id}/rooms', [ApiRooms::class, 'getHotelRooms']);
 });
 
 // Reservations and Payments
@@ -94,9 +93,9 @@ Route::prefix('promos')->group(function () {
 
 // Favorites
 Route::prefix('favorites')->group(function () {
-    Route::post('/', [ApiApiFavorites::class, 'addFavorite']);
-    Route::get('/{user_id}', [ApiApiFavorites::class, 'getFavorites']);
-    Route::delete('/{id}', [ApiApiFavorites::class, 'removeFavorite']);
+    Route::post('/', [ApiFavorites::class, 'addFavorite']);
+    Route::get('/{user_id}', [ApiFavorites::class, 'getFavorites']);
+    Route::delete('/', [ApiFavorites::class, 'removeFavorite']);
 });
 
 // Subscriptions

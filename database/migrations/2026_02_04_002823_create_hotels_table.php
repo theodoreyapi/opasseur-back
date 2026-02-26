@@ -18,9 +18,9 @@ return new class extends Migration
             $table->string('image');
             $table->string('name'); // Résidence O’Passage
             $table->enum('type', ['hotel', 'residence', 'appartement']);
-            $table->text('short_description')->nullable();
-            $table->longText('description_establishment')->nullable();
-            $table->longText('description_accommodation')->nullable();
+            $table->text('short_description')->nullable()->default("");
+            $table->longText('description_establishment')->nullable()->default("");
+            $table->longText('description_accommodation')->nullable()->default("");
 
             // Localisation
             $table->unsignedBigInteger('country_id');
@@ -28,8 +28,8 @@ return new class extends Migration
             $table->unsignedBigInteger('city_id');
             $table->foreign('city_id')->references('id_commune')->on('communes');
             $table->string('address')->nullable();
-            $table->decimal('latitude', 10, 7)->nullable();
-            $table->decimal('longitude', 10, 7)->nullable();
+            $table->decimal('latitude', 10, 7)->nullable()->default(0);
+            $table->decimal('longitude', 10, 7)->nullable()->default(0);
 
             // Tarification de base
             $table->decimal('price_per_night', 10, 2); // 25 000 FCFA

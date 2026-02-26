@@ -17,6 +17,9 @@ class Payments extends Model
         'payment_method',
         'status',
         'transaction_id',
+        'deposit_amount',
+        'checkout_session_id',
+        'remaining_amount',
     ];
 
     protected $table = 'payments';

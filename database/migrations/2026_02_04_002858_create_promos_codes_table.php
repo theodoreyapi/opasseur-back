@@ -23,6 +23,9 @@ return new class extends Migration
             $table->timestamp('expires_at')->nullable();
             $table->boolean('active')->default(true);
 
+            $table->unsignedBigInteger('user_id')->nullable();
+            $table->foreign('user_id')->references('id_opasseur')->on('opasseurs');
+
             $table->timestamps();
         });
     }
@@ -33,5 +36,9 @@ return new class extends Migration
     public function down(): void
     {
         Schema::dropIfExists('promos_codes');
+        Schema::table('promos_codes', function (Blueprint $table) {
+            $table->dropForeign(['user_id']);
+            $table->dropColumn('user_id');
+        });
     }
 };

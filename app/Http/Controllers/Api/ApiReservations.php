@@ -3,6 +3,8 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\HotelImages;
+use App\Models\Hotels;
 use App\Models\Payments;
 use App\Models\PromosCodes;
 use App\Models\Reservations;
@@ -75,84 +77,97 @@ class ApiReservations extends Controller
         // =====================
         // 1️⃣ RÉSERVATION
         // =====================
-        $reservation = Reservations::where('id_reservation', $id)
+        $reservation = Reservations::where('user_id', $id)
             ->select(
                 'id_reservation',
                 'user_id',
                 'room_id',
-                'promo_code_id',
                 'start_date',
                 'end_date',
                 'total_price',
                 'status',
-                'created_at'
+                'created_at',
+                'updated_at',
             )
-            ->first();
-
-        if (!$reservation) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Réservation introuvable'
-            ], 404);
-        }
-
-        // =====================
-        // 2️⃣ ROOM
-        // =====================
-        $room = Rooms::where('id_room', $reservation->room_id)
-            ->select(
-                'id_room',
-                'hotel_id',
-                'name',
-                'capacity',
-                'price_per_night'
-            )
-            ->first();
-
-        // =====================
-        // 3️⃣ PAYMENTS
-        // =====================
-        $payments = Payments::where('reservation_id', $reservation->id_reservation)
-            ->select(
-                'id_payment',
-                'amount',
-                'method',
-                'payment_method',
-                'status',
-                'transaction_id',
-                'created_at'
-            )
-            ->orderBy('created_at', 'desc')
             ->get();
 
-        // =====================
-        // 4️⃣ PROMO CODE
-        // =====================
-        $promo = null;
-
-        if ($reservation->promo_code_id) {
-            $promo = PromosCodes::where('id_promo_code', $reservation->promo_code_id)
-                ->select(
-                    'code',
-                    'discount_type',
-                    'discount_value'
-                )
-                ->first();
+        if ($reservation->isEmpty()) {
+            return response()->json([
+                'success' => true,
+                'data' => []
+            ]);
         }
 
-        // =====================
-        // 5️⃣ INJECTION
-        // =====================
-        $reservation->room = $room;
-        $reservation->payments = $payments;
-        $reservation->promo = $promo;
+        $result = $reservation->map(function ($resa) {
 
-        // =====================
-        // 6️⃣ RESPONSE
-        // =====================
+            // =====================
+            // 2️⃣ ROOM + HOTEL + IMAGE
+            // =====================
+            $room = Rooms::where('id_room', $resa->room_id)
+                ->select('id_room', 'hotel_id', 'name', 'capacity', 'price_per_night')
+                ->first();
+
+            if ($room) {
+                // Infos hôtel
+                $hotel = Hotels::where('id_hotel', $room->hotel_id)
+                    ->select(
+                        'id_hotel',
+                        'name as hotel_name',
+                        'type',
+                        'address',
+                        'rating',
+                        'image',
+                        'latitude',
+                        'longitude',
+                        'price_per_night',
+                        'currency',
+                        'check_in_time',
+                        'check_out_time',
+                        'free_cancellation_hours',
+                    )
+                    ->first();
+
+                // Première image de la room
+                $roomImage = HotelImages::where('room_id', $room->id_room)
+                    ->select('image_path', 'type', 'is_main')
+                    ->orderByDesc('is_main') // priorité à l'image principale
+                    ->first();
+
+                $room->hotel = $hotel;
+                $room->first_image = $roomImage ? $roomImage->image_path : null;
+            }
+
+            // =====================
+            // 3️⃣ PAYMENTS
+            // =====================
+            $payments = Payments::where('reservation_id', $resa->id_reservation)
+                ->select('id_payment', 'amount', 'method', 'payment_method', 'status', 'transaction_id', 'created_at')
+                ->orderBy('created_at', 'desc')
+                ->get();
+
+            // =====================
+            // 4️⃣ PROMO CODE
+            // =====================
+            $promo = null;
+            if ($resa->promo_code_id) {
+                $promo = PromosCodes::where('id_promo_code', $resa->promo_code_id)
+                    ->select('code', 'discount_type', 'discount_value')
+                    ->first();
+            }
+
+            // =====================
+            // 5️⃣ INJECTION
+            // =====================
+            $resa->room     = $room;
+            $resa->payments = $payments;
+            $resa->promo    = $promo;
+
+            return $resa;
+        });
+
         return response()->json([
             'success' => true,
-            'data' => $reservation
+            'data'    => $result->values()
         ]);
     }
 

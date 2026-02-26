@@ -22,18 +22,7 @@ class ApiHotels extends Controller
             ->join('pays', 'pays.id_pays', '=', 'hotels.country_id')
             ->where('hotels.active', true)
             ->select(
-                'hotels.id_hotel',
-                'hotels.image',
-                'hotels.name',
-                'hotels.type',
-                'hotels.short_description',
-                'hotels.price_per_night',
-                'hotels.currency',
-                'hotels.rating',
-                'hotels.reviews_count',
-                'hotels.address',
-                'hotels.latitude',
-                'hotels.longitude',
+                'hotels.*',
                 'communes.nom_commune as city',
                 'pays.nom_pays as country'
             )

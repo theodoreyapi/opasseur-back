@@ -19,6 +19,7 @@ class PromosCodes extends Model
         'starts_at',
         'expires_at',
         'active',
+        'user_id',
     ];
 
     protected $table = 'promos_codes';

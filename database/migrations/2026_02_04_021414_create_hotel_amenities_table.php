@@ -18,7 +18,7 @@ return new class extends Migration
             $table->foreign('hotel_id')->references('id_hotel')->on('hotels')->onDelete('cascade');
 
             $table->string('name'); // Jacuzzi, Wifi HD, Piscine
-            $table->string('icon')->nullable(); // nom icône frontend
+            $table->string('icon')->nullable()->default(""); // nom icône frontend
             $table->boolean('available')->default(true);
 
             $table->timestamps();
