@@ -7,9 +7,9 @@ Route::get('/', function () {
     return view('welcome');
 });
 
-Route::get('/payment/wave/success', [PaymentWaveController::class, 'success'])
+Route::get('/payment/wave/success/{id}', [PaymentWaveController::class, 'success'])
     ->name('wave.success');
-Route::get('/payment/wave/error', [PaymentWaveController::class, 'error'])
+Route::get('/payment/wave/error/{id}', [PaymentWaveController::class, 'error'])
     ->name('wave.error');
 
 Route::get('/politique', function () {

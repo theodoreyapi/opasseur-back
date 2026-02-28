@@ -34,6 +34,9 @@ return new class extends Migration
                 'no_show'
             ])->default('pending');
 
+            $table->string('name_benef')->nullable();
+            $table->string('number_benef')->nullable();
+
             $table->timestamps();
         });
     }

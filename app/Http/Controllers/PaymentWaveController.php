@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Payments;
+use App\Models\Reservations;
 use App\Models\ReservationsHistoriques;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
@@ -12,21 +13,23 @@ class PaymentWaveController extends Controller
     /**
      * ✅ PAGE SUCCESS
      */
-    public function success(Request $request)
+    public function success($id)
     {
-        $checkoutId = $request->query('checkout_session_id');
 
-        if (!$checkoutId) {
-            return view('payment.error', [
-                'message' => 'Session Wave invalide',
-            ]);
+        // ✅ Récupère l'objet complet, puis accède à l'attribut
+        $payment = Payments::where('id_payment', $id)->first();
+
+        if (!$payment) {
+            return view('payment.error', ['message' => 'Paiement introuvable']);
         }
+
+        $checkoutId = $payment->checkout_session_id; // ✅ string correcte
 
         // Vérification réelle chez Wave (source de vérité)
         $response = Http::withHeaders([
-                'Authorization' => 'Bearer wave_ci_prod_W78vRFmw78kqn50m65BRZIzWUiY-kN_tJKkDWIqLTeM4xVvgn_ECUGdvg68-BisjULstegCZwAtmL2XlVHprKf8neCC2Dhdj8Q',
-                'Content-Type'  => 'application/json',
-            ])->get("https://api.wave.com/v1/checkout/sessions/{$checkoutId}");
+            'Authorization' => 'Bearer wave_ci_prod_W78vRFmw78kqn50m65BRZIzWUiY-kN_tJKkDWIqLTeM4xVvgn_ECUGdvg68-BisjULstegCZwAtmL2XlVHprKf8neCC2Dhdj8Q',
+            'Content-Type'  => 'application/json',
+        ])->get("https://api.wave.com/v1/checkout/sessions/$checkoutId");
 
         if (!$response->successful()) {
             return view('payment.error', [
@@ -42,16 +45,16 @@ class PaymentWaveController extends Controller
             ]);
         }
 
-        $payment = Payments::where('checkout_session_id', $checkoutId)->first();
-
-        if ($payment && $payment->status !== 'paid') {
+        if ($payment && $payment->status !== 'success') {
             $payment->update([
-                'status' => 'paid',
+                'status' => 'success',
                 'transaction_id' => $session['transaction_id'],
             ]);
 
+            $reservation = Reservations::find($payment->reservation_id);
+
             ReservationsHistoriques::create([
-                'changed_by' => 0,
+                'changed_by' => $reservation->user_id,
                 'reservation_id' => $payment->reservation_id,
                 'old_status' => 'deposit_pending',
                 'new_status' => 'deposit_paid',
@@ -69,11 +72,12 @@ class PaymentWaveController extends Controller
     /**
      * ❌ PAGE ERROR
      */
-    public function error()
+    public function error($id)
     {
         return view('payment.error', [
             'amount' => 0,
             'message' => 'Paiement annulé ou échoué',
+            'payment_id' => $id,
         ]);
     }
 }

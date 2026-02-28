@@ -112,7 +112,7 @@
         </a>
 
         <!-- Retour site -->
-        <a href="https://opassage.sodalite-consulting.com" class="footer-link">
+        <a href="{{ url('/') }}" class="footer-link">
             Retourner sur le site
         </a>
 

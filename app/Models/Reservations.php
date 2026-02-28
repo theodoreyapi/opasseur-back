@@ -18,6 +18,8 @@ class Reservations extends Model
         'end_date',
         'total_price',
         'status',
+        'name_benef',
+        'number_benef',
     ];
 
     protected $table = 'reservations';

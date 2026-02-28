@@ -24,11 +24,22 @@ class ApiPayments extends Controller
         $reservation = Reservations::findOrFail($request->reservation_id);
 
         try {
+
+            $payment = Payments::create([
+                'reservation_id' => $reservation->id_reservation,
+                'amount' => $request->deposit_amount,
+                'remaining_amount' => max(0, $reservation->total_price - $request->deposit_amount),
+                'method' => 'mobile_money',
+                'payment_method' => 'wave',
+                'status' => 'pending',
+                'checkout_session_id' => null, // cos-xxxx
+            ]);
+
             $payload = [
                 'amount' => (string) $request->deposit_amount,
                 'currency' => 'XOF',
-                'success_url' => 'https://opassage.sodalite-consulting.com/payment/wave/success',
-                'error_url'   => 'https://opassage.sodalite-consulting.com/payment/wave/error',
+                'success_url' => 'https://opassage.sodalite-consulting.com/payment/wave/success/' . $payment->id_payment,
+                'error_url'   => 'https://opassage.sodalite-consulting.com/payment/wave/error/' . $payment->id_payment,
                 'client_reference' => (string) $reservation->id_reservation,
             ];
 
@@ -49,14 +60,8 @@ class ApiPayments extends Controller
 
             $data = $response->json();
 
-            $payment = Payments::create([
-                'reservation_id' => $reservation->id_reservation,
-                'amount' => $request->deposit_amount,
-                'remaining_amount' => max(0, $reservation->total_price - $request->deposit_amount),
-                'method' => 'mobile_money',
-                'payment_method' => 'wave',
-                'status' => 'pending',
-                'checkout_session_id' => $data['id'], // cos-xxxx
+            $payment->update([
+                'checkout_session_id' => $data['id'],
             ]);
 
             ReservationsHistoriques::create([

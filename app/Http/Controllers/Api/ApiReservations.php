@@ -141,7 +141,17 @@ class ApiReservations extends Controller
             // 3️⃣ PAYMENTS
             // =====================
             $payments = Payments::where('reservation_id', $resa->id_reservation)
-                ->select('id_payment', 'amount', 'method', 'payment_method', 'status', 'transaction_id', 'created_at')
+                ->select(
+                    'id_payment',
+                    'amount',
+                    'method',
+                    'payment_method',
+                    'status',
+                    'transaction_id',
+                    'created_at',
+                    'deposit_amount as reste',
+                    'remaining_amount as avance',
+                )
                 ->orderBy('created_at', 'desc')
                 ->get();
 
