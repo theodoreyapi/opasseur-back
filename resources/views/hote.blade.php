@@ -1,4 +1,4 @@
-@extends('layouts.master', ['title' => 'Opasseur', 'titleHeader' => 'Opasseur', 'description' => 'Liste des utilisateurs', 'icone' => 'bi-people'])
+@extends('layouts.master', ['title' => 'Hote', 'titleHeader' => 'Hote', 'description' => 'Liste des hôtes', 'icone' => 'bi-people'])
 
 @push('scripts')
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
